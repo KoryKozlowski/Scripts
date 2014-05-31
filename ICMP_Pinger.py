@@ -1,13 +1,20 @@
-# Author: Kory Kozlowski
-from socket import * 
+# coding=utf-8
+#from socket import * 
+import socket
 import os 
 import sys 
 import struct 
 import time 
 import select 
 import binascii 
- 
+#Author: Kory Kozlowski
+#global variables 
 ICMP_ECHO_REQUEST = 8 
+minRTT = 1000
+maxRTT = 0
+totalRTT = 0
+numTimeouts = 0
+totalPings = 0
  
 def checksum(str): 
     csum = 0 
@@ -44,16 +51,27 @@ def receiveOnePing(mySocket, ID, timeout, destAddr):
         timeReceived = time.time() 
         recPacket, addr = mySocket.recvfrom(1024) 
  
-        #Fill in start 
-        
+        #Fill in start         
         #Fetch the ICMP header from the IP packet 
+        #first 20 bytes = IP header
         header = recPacket[20:28]
+        #type(8bits), code(8bits), checksum(16bits), id(16bits), sequence(16bits)
+        type, code, checksum, id, sequence = struct.unpack("bbHHh", header)
+        if id == ID: 
+            numBytes = struct.calcsize("d")
+            timeLocale = recPacket[28:28 + numBytes]
+            timeSent = struct.unpack("d", timeLocale)[0]
+            transTime = (timeReceived - timeSent)*1000
+            ttlLocale = recPacket[8:9]
+            ttl = struct.unpack("b", ttlLocale)[0]
+            print "type= %d, code= %d, checksum= %d, id= %d, sequence= %d, TTL= %d"%(type,code,checksum,id,sequence,ttl)
+            return  transTime
         #Fill in end 
  
         timeLeft = timeLeft - howLongInSelect 
         if timeLeft <= 0: 
             return "Request timed out." 
- 
+            
 def sendOnePing(mySocket, destAddr, ID): 
     # Header is type (8), code (8), checksum (16), id (16), sequence (16) 
  
@@ -68,7 +86,7 @@ def sendOnePing(mySocket, destAddr, ID):
     # Get the right checksum, and put in the header 
     if sys.platform == 'darwin': 
         myChecksum = socket.htons(myChecksum) & 0xffff 
- #Convert 16-bit integers from host to network byte order. 
+    #Convert 16-bit integers from host to network byte order. 
     else: 
         myChecksum = socket.htons(myChecksum) 
  
@@ -86,7 +104,14 @@ def doOnePing(destAddr, timeout):
     #Fill in start 
  
     #Create Socket here 
- 
+    try:
+        mySocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
+    except socket.error, (n, error):
+        if n == 1: 
+            error+=(". Please run as root")
+            raise socket.error(error)
+        raise
+    mySocket.connect((destAddr,80))
     #Fill in end 
  
     myID = os.getpid() & 0xFFFF #Return the current process i 
@@ -99,14 +124,60 @@ def doOnePing(destAddr, timeout):
 def ping(host, timeout=1): 
     #timeout=1 means: If one second goes by without a reply from the server, 
     #the client assumes that either the client’s ping or the server’s pong is lost 
-    dest = socket.gethostbyname(host) 
+    try:
+        dest = socket.gethostbyname(host) 
+    except socket.error, v:
+        err = v[0]
+        if err == 110: 
+            print "ERROR: Host Connection Timed Out"
+            return 0
     print "Pinging " + dest + " using Python:" 
     print "" 
     #Send ping requests to a server separated by approximately one second 
-    while 1 : 
+    numPing = input('Enter Number of Times to Ping ' + host + ': ')
+    global totalPings
+    totalPings = numPing
+    print "------------------------------------------------------------------------"
+    while numPing > 0 :        
         delay = doOnePing(dest, timeout) 
-        print delay 
+        global numTimeouts
+        if delay == "Request timed out.":    
+            numTimeouts += 1
+            print delay
+        else:
+            global totalRTT, minRTT, maxRTT
+            if delay < minRTT:
+                minRTT = delay
+            if delay > maxRTT:
+                maxRTT = delay 
+            totalRTT += delay 
+            print "RTT= %.10f(ms)"%(delay) 
+        print "------------------------------------------------------------------------"
         time.sleep(1)# one second 
+        numPing = numPing - 1
     return delay 
- 
-ping("www.poly.edu") 
+
+#main function
+yesNo = raw_input('Do Ping? (y/n): ')
+while yesNo=="y"or yesNo=="Y"or yesNo=="yes"or yesNo=="Yes"or yesNo=="YES":
+    #global minRTT, maxRTT, totalRTT, numTimouts, totalPings
+    minRTT = 1000
+    maxRTT = 0
+    totalRTT = 0
+    numTimeouts = 0
+    totalPings = 0
+    dropped = 0
+    host = raw_input('Enter URL to Ping: ')
+    res = ping(host)    
+    #if connect error or timeout
+    if minRTT == 1000:
+        minRTT = 0; 
+    #if socket connection did not timeout
+    if res != 0:
+        dropped = (numTimeouts/totalPings)*100
+        avgPing = totalRTT/totalPings
+        print "avgRTT= %.10f, minRTT= %.10f, maxRTT= %.10f"%(avgPing,minRTT,maxRTT)
+        print "Packets Dropped= %d"%(dropped)+"%"
+        print "------------------------------------------------------------------------"
+    yesNo = raw_input('Do Ping? (y/n): ')
+print "Goodbye"

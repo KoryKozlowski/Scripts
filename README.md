@@ -12,3 +12,6 @@ Scripts written in various languages for various purposes.
   
 ### myfns.ss
   * An interpreter for the PLAN toy-grammar written in scheme.
+
+### ShortestPath.java
+  * An algorithm to calculate the shortest path between two nodes in an encoded graph given a number of steps. Since the path is delimeted by the number of steps it can take, the algorithm can be considered the "cheapest" path. 

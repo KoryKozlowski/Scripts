@@ -10,7 +10,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Scanner;
 
-public class ShortestPath {
+public class ShortestPath 
+{
 	public static int INF = Integer.MAX_VALUE;
 
 	public static double[][] shortest(double[][] w1, double[][] w2) 
@@ -83,7 +84,8 @@ public class ShortestPath {
 			result[i][i] = 0;
 		}
 		
-		if (s > 1) {
+		if (s > 1) 
+		{
 			double[][] w1 = new double[n][n];
 			double[][] w2 = new double[n][n];
 			boolean use1 = false;

@@ -1,4 +1,5 @@
 #sitebody
 {
     background-image: url('https://0.s3.envato.com/files/1589047/image_prev.jpg');
+    background-repeat: repeat-y;
 }
